@@ -290,3 +290,89 @@ common summary statistic (e.g. purity or fidelity at matched parameter, as in th
 comparison plot) rather than assuming the raw parameters are on the same scale.
 
 *Relevant code:* `src/noise_models.py::depolarizing_kraus`; `notebooks/02_noise_models.ipynb` §5.
+
+## Part 3 — Noise Comparison Experiments
+
+### Q12. If you apply the same noise channel independently, `k` times in a row, is that the same channel with a bigger parameter, or something qualitatively different?
+
+**Answer.** For three of the five channels in this project, it's provably *the same channel*
+with a specific, derivable composed parameter — not a coincidence, and verified via `SuperOp`
+equality (per Q8, never by comparing Kraus operators) in `notebooks/03_noise_experiments.ipynb`:
+
+- **Bit flip**, composed $k$ times: since $X^2=I$, the net effect is an $X$ error iff an *odd*
+  number of the $k$ independent flips occurred. For i.i.d. Bernoulli($p$) trials, the standard
+  "random walk on $\mathbb Z_2$" identity gives $p_k = \tfrac12-\tfrac12(1-2p)^k$.
+- **Depolarizing**, composed $k$ times: $\mathcal E(\rho)=(1-p)\rho+p\,I/2$ is an affine
+  contraction toward $I/2$ by factor $(1-p)$ each application, so composing $k$ times contracts by
+  $(1-p)^k$, giving $p_k=1-(1-p)^k$.
+- **Amplitude damping**, composed $k$ times: $\gamma_k = 1-(1-\gamma)^k$ — and this is exactly the
+  *discrete* form of continuous exponential $T_1$ decay. If each layer models idle time $\delta t$
+  with $\gamma=1-e^{-\delta t/T_1}$, then $\gamma_k=1-e^{-k\delta t/T_1}$ — the textbook $T_1$ decay
+  law falls straight out of composing independent layers, rather than being a separate assumption.
+
+Phase flip and phase damping don't get a separate treatment here only because (Q10) they're
+already the same channel family as each other — the bit-flip-style composition law applies to
+phase flip identically by the $X\leftrightarrow Z$ symmetry.
+
+This matters practically: it means "depth" in a noisy-circuit sweep isn't merely "run the
+simulation longer and see what happens" — for these channels, the effect of depth is *exactly*
+predictable in closed form, and the sweep script's `depth` axis is a legitimate stand-in for
+accumulated idle time / gate count, not an ad hoc knob.
+
+*Relevant code:* `notebooks/03_noise_experiments.ipynb` §2 (`compose_k_times` verification cell).
+
+### Q13. Fidelity and error rate are both "how much did noise hurt," so why report both instead of picking one?
+
+**Answer.** They measure different things and can disagree sharply. `error_rate` (and its
+complement, `success_probability`) only asks "did the measured computational-basis bitstring fall
+inside the ideal support?" — a coarse, single-basis yes/no. `fidelity` is the full quantum-state
+overlap $F(\rho,\sigma)$, sensitive to *any* deviation, not just ones visible in one fixed
+measurement basis.
+
+The disagreement isn't hypothetical — it showed up immediately in the committed sweep data: for a
+Bell state at depth 4, phase flip and phase damping both show `error_rate = 0.0` (measuring
+`{"00","11"}` with certainty, exactly as ideal) while their `fidelity` had already dropped to
+$\approx 0.61$. This is exactly Part 2's Q10 lesson resurfacing with consequences: phase flip and
+phase damping only ever damage *coherence* (off-diagonal density-matrix terms), never
+computational-basis *populations* — so a Z-basis measurement is structurally blind to the damage
+they do, even though the state has genuinely become a different, far-less-useful quantum state
+(useless for anything requiring the destroyed coherence, e.g. a subsequent Hadamard-basis
+operation). Reporting only `error_rate` here would be actively misleading; reporting only
+`fidelity` loses the operationally-relevant "does my specific measurement protocol still work"
+answer. Both, together, are the honest summary.
+
+*Relevant code:* `notebooks/03_noise_experiments.ipynb` §5 (fidelity-vs-error-rate comparison
+cell); `src/experiment_utils.py::success_probability`, `error_rate`.
+
+### Q14. Why is the qubit-count axis capped at 6 in this experiment, when the shot-based sampling backend clearly handles more qubits fine in Parts 1–2?
+
+**Answer.** Two different computations are running side by side in this sweep, with very
+different scaling. The **exact fidelity** metric requires the full density matrix, a
+$2^n\times2^n$ object, and applying a Kraus channel to it costs $O(4^n)$ — this is the actual
+bottleneck, and it's what the qubit-count cap is protecting against, not the sampling side.
+**Shot-based sampling** (`sample_counts` via `AerSimulator`/`SamplerV2`) doesn't need to build or
+store a dense $2^n\times2^n$ matrix at all — Qiskit's simulator backend can simulate many more
+qubits before becoming impractical. So the constraint here is specifically "the experiment wants
+*exact* fidelity, not just empirical counts," and exact fidelity is the expensive thing — a
+reminder that `fidelity` and `success_probability`/`error_rate` aren't just two flavors of the same
+answer (Q13) — they also don't cost the same to compute, which is itself a real practical tradeoff
+in noise characterization work (fast approximate estimates vs. slow exact ones).
+
+*Relevant code:* `src/experiment_utils.py::apply_noise_layers`; `experiments/configs/noise_sweep.toml`
+(`qubit_counts = [2, 3, 4, 5, 6]`); `notebooks/03_noise_experiments.ipynb` "Limitations" section.
+
+### Q15. Part 1 said GHZ entanglement is "fragile" because losing one qubit destroys all coherence among the rest. What does that look like quantitatively under an actual noise channel, instead of an idealized "erase a qubit" operation?
+
+**Answer.** Under one layer of independent per-qubit noise (any of the five channels), GHZ-state
+fidelity falls off roughly **geometrically**, not linearly, in qubit count: the committed sweep
+(depolarizing, per-qubit parameter 0.1) shows fidelity ratios between consecutive qubit counts
+sitting at $\approx0.927$ across $n=2\to6$ — essentially constant, the signature of
+$F(n)\approx c\cdot r^n$ rather than a linear decline. The mechanism is direct: each additional
+qubit is one more *independent* opportunity for the channel to damage the state, so the *surviving
+fraction* compounds multiplicatively with $n$, exactly like a chain of independent Bernoulli
+survivals. This is the quantitative version of Part 1's qualitative claim, and it directly
+motivates the working Part 5 research question: which channel's fidelity decays fastest, in this
+geometric sense, as qubit count grows.
+
+*Relevant code:* `notebooks/03_noise_experiments.ipynb` §4 (GHZ fidelity vs. qubit count, single
+channel) and §5 (all five channels, from the committed sweep).
