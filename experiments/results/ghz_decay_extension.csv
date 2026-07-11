@@ -1,0 +1,5 @@
+channel,qubit_count,param,fidelity
+bit_flip,7,0.1,0.47829704852352845
+phase_damping,7,0.1,0.8457950679412075
+bit_flip,8,0.1,0.4304672813375789
+phase_damping,8,0.1,0.8280500066866561

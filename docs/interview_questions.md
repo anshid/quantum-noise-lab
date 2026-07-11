@@ -446,3 +446,69 @@ bases at once.
 `tests/test_error_mitigation.py::test_phase_flip_noise_is_invisible_to_majority_vote_on_computational_input`
 and `::test_phase_flip_noise_still_degrades_true_state_fidelity_of_a_superposition_input`;
 `notebooks/04_error_mitigation.ipynb` §5.
+
+## Part 5 — Mini Research Question
+
+### Q19. Why does phase-flip noise cause GHZ-state fidelity to plateau at 0.5 instead of decaying to 0 the way bit-flip does?
+
+**Answer.** Decompose the GHZ density matrix into two **population** terms
+($|0\cdots0\rangle\langle0\cdots0|$, $|1\cdots1\rangle\langle1\cdots1|$) and one **coherence** term
+($|0\cdots0\rangle\langle1\cdots1|$ plus its conjugate); fidelity is a weighted sum of both. A phase
+flip's Kraus operators, $K_0=\sqrt{1-p}\,I$ and $K_1=\sqrt{p}\,Z$, are diagonal in the computational
+basis, and $Z|0\rangle=|0\rangle$, $Z|1\rangle=-|1\rangle$, so both population projectors are exact
+fixed points — a diagonal Kraus operator can never move probability mass out of the diagonal entry
+it started in. Only the coherence term is touched, shrinking by a factor $(1-2p)$ per qubit, giving
+$F(n)=\frac{1+(1-2p)^n}{2}$, which asymptotes to exactly $1/2$ — never below, since the untouched
+populations alone already contribute $1/2$ to fidelity. Bit-flip's Kraus operators are *not*
+diagonal ($X|0\rangle\langle0|X=|1\rangle\langle1|$ moves population entirely into the other
+sector), so each bit flip genuinely depletes both populations and coherence, with no floor —
+fidelity decays all the way to $0$. This generalizes Part 4's Q18 finding (phase-flip is invisible
+to $Z$-basis majority vote) from the 3-qubit repetition code to arbitrary-size GHZ states: the same
+"diagonal channels can't touch populations" mechanism explains both results. Notably, **phase
+damping is diagonal too** (Kraus operators are both diagonal matrices), so it obeys the identical
+$\frac{1+\text{factor}^n}{2}$ form with factor $\sqrt{1-\lambda}$ — Part 3's sweep (capped at $n=6$)
+made it look like merely "the slowest-decaying channel," but it's actually in the same
+plateau-bound category as phase-flip, just approaching the floor far more slowly since
+$\sqrt{1-\lambda}$ stays much closer to 1 than $(1-2p)$ does for comparable parameter values.
+
+*Relevant code:* `src/research_analysis.py::predicted_phase_flip_decay_factor`,
+`::predicted_phase_damping_decay_factor`, `::predicted_dephasing_ghz_fidelity`;
+`tests/test_research_analysis.py::test_dephasing_ghz_fidelity_closed_form_matches_simulation`;
+`notebooks/05_mini_research_question.ipynb` §2.
+
+### Q20. How is the empirical geometric decay rate extracted from simulation data, and what does a high $R^2$ from the fit actually confirm?
+
+**Answer.** If fidelity decays geometrically, $F(n) = A\,r^n$, then $\log F(n) = \log A + n\log r$
+is linear in $n$ — so fitting a straight line to $(n, \log F(n))$ via ordinary least squares
+(`np.polyfit`, degree 1) recovers the per-qubit survival ratio $r = e^{\text{slope}}$ directly, and
+the $R^2$ of that fit (computed from residuals in log-space) measures how well a *pure* geometric
+model actually describes the data. A high $R^2$ confirms the decay is well-modeled as each qubit
+contributing an independent, identical multiplicative degradation factor — consistent with the
+noise being applied independently and identically per qubit, as assumed throughout this project. A
+low $R^2$ is itself informative: fitting this model to phase-flip's data gives a noticeably lower
+$R^2$ (~0.99, vs. ~0.999+ for the others) than the truly-geometric channels, because a curve that's
+actually asymptoting to $0.5$ isn't a straight line in log-space — the fit is a good-but-imperfect
+local approximation, not evidence that phase-flip "is" geometric in the same sense bit-flip is.
+
+*Relevant code:* `src/research_analysis.py::fit_geometric_decay_rate`;
+`tests/test_research_analysis.py::test_fit_geometric_decay_rate_recovers_known_rate`;
+`notebooks/05_mini_research_question.ipynb` §3.
+
+### Q21. What would it take to push this GHZ-fidelity analysis to n=20+ qubits, and what does that imply about simulation vs. real hardware?
+
+**Answer.** Density-matrix simulation cost is $O(4^n)$ (Q14) — a 20-qubit density matrix has
+$4^{20}\approx10^{12}$ complex entries, computationally infeasible on a laptop. Two channels in this
+part (phase-flip, phase damping) sidestep this entirely for large $n$, because their fidelity has a
+*closed form* verified against simulation at small $n$ — the closed form can be evaluated at $n=100$
+trivially, no simulation needed (shown in the notebook's theory-vs-simulation plot, extrapolated to
+$n=14$ using only the closed form past $n=8$). Channels without a derived closed form (bit-flip,
+depolarizing, amplitude damping) have no such shortcut: pushing them past $n\approx10$-$12$ on
+classical hardware requires either (a) exploiting GHZ's specific sparse structure directly (its
+density matrix has only 4 nonzero entries regardless of $n$ — a general-purpose density-matrix
+simulator doesn't know to exploit this, but a hand-written GHZ-specific update rule could track just
+those 4 entries in $O(n)$, not $O(4^n)$), or (b) tensor-network methods (matrix product states),
+which exploit limited entanglement structure more generally; real quantum hardware, notably, pays no
+such classical simulation cost at all — it *is* the $n$-qubit system, which is exactly why
+characterizing noise on real devices (rather than simulating it) becomes essential at scale.
+
+*Relevant code:* `docs/mini_research_question.md` (Limitations); `notebooks/05_mini_research_question.ipynb` §6.
