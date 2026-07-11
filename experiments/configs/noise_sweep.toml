@@ -1,0 +1,21 @@
+[general]
+shots = 4096
+seed = 42
+output_csv = "experiments/results/noise_sweep.csv"
+
+# Bell-state sweep: fixed at 2 qubits, varies channel x noise parameter x depth (num idle layers).
+[bell]
+enabled = true
+bell_type = "phi_plus"
+channels = ["bit_flip", "phase_flip", "depolarizing", "amplitude_damping", "phase_damping"]
+params = [0.0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0]
+depths = [1, 2, 4, 8]
+
+# GHZ sweep: varies channel x noise parameter x qubit count x depth.
+# qubit_counts capped at 6 -- density-matrix evolution cost is O(4^n) per channel application.
+[ghz]
+enabled = true
+channels = ["bit_flip", "phase_flip", "depolarizing", "amplitude_damping", "phase_damping"]
+params = [0.0, 0.1, 0.2, 0.3, 0.4, 0.5]
+qubit_counts = [2, 3, 4, 5, 6]
+depths = [1, 2, 4]

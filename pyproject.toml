@@ -10,3 +10,8 @@ requires-python = ">=3.11"
 
 [tool.setuptools.packages.find]
 include = ["src*"]
+
+[tool.pytest.ini_options]
+markers = [
+    "slow: end-to-end tests that shell out to a script or run a larger simulation",
+]

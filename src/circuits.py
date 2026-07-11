@@ -85,3 +85,19 @@ def add_measurements(qc: QuantumCircuit, qubits: Sequence[int] | None = None) ->
     measured.measure(target_qubits, creg)
 
     return measured
+
+
+def add_idle_layers(qc: QuantumCircuit, num_layers: int) -> QuantumCircuit:
+    """Return a copy of qc with num_layers barrier+id(all qubits) blocks appended.
+
+    A depth proxy: each layer is a natural anchor point for one independent
+    application of a noise channel per qubit (see noise_models.single_qubit_noise_model
+    and experiment_utils.apply_noise_layers), standing in for one unit of idle time
+    or circuit depth.
+    """
+    layered = qc.copy()
+    for _ in range(num_layers):
+        layered.barrier()
+        layered.id(range(layered.num_qubits))
+
+    return layered
