@@ -376,3 +376,73 @@ geometric sense, as qubit count grows.
 
 *Relevant code:* `notebooks/03_noise_experiments.ipynb` §4 (GHZ fidelity vs. qubit count, single
 channel) and §5 (all five channels, from the committed sweep).
+
+## Part 4 — Simple Error Mitigation
+
+### Q16. Why is the majority-vote logical error rate exactly $3p^2-2p^3$, and why does it cross the "no mitigation" line at exactly $p=0.5$?
+
+**Answer.** The 3-qubit repetition code encodes a logical bit by copying it onto 3 physical
+qubits, each of which independently suffers a bit flip with probability $p$. Majority vote decodes
+*incorrectly* exactly when 2 or 3 of the 3 physical qubits flip — a direct binomial tail:
+
+$$
+p_{\text{logical}} = P[\text{Binomial}(3,p)\ge 2] = \binom{3}{2}p^2(1-p) + \binom{3}{3}p^3 = 3p^2-2p^3
+$$
+
+The crossover at $p=0.5$ isn't a coincidence needing a separate proof — it falls straight out of
+the formula, $3(0.25)-2(0.125)=0.5$, and it has a clean interpretation: at $p=0.5$ each physical
+qubit is a fair coin, and majority vote over 3 independent fair coins is *also* a fair coin — no
+information is gained by taking a vote among symmetric noise. Below $p=0.5$, redundancy helps
+(needing 2 independent failures is harder than 1); above $p=0.5$, it actively hurts, since 3
+independent votes for the *already more likely* wrong answer become more likely than one vote for
+it. This is a direct application of order statistics / majority-of-$n$ reasoning from classical
+probability, applied to a quantum decoding step.
+
+*Relevant code:* `src/error_mitigation.py::logical_error_rate_theoretical`;
+`tests/test_error_mitigation.py::test_logical_error_rate_theoretical_matches_binomial_tail`;
+`notebooks/04_error_mitigation.ipynb` §2, §4.
+
+### Q17. Why isn't the repetition code + majority vote considered full quantum error correction (QEC)?
+
+**Answer.** Two independent reasons, often conflated but worth keeping separate:
+
+1. **Majority-vote decoding destroys superpositions.** Decoding requires a direct
+   computational-basis measurement of all 3 physical qubits. That measurement collapses any
+   encoded superposition outright — this scheme only ever recovers a *classical* bit value, never
+   a qubit that can continue being computed on. Real QEC instead measures **stabilizers** — parity
+   checks like $Z_1Z_2$ and $Z_2Z_3$, via ancilla qubits — which reveal *where* an error occurred
+   (the syndrome) without revealing (and therefore without collapsing) the encoded logical state,
+   followed by a corrective gate conditioned on the syndrome.
+2. **It only protects one error type** (see Q18) — a genuinely general-purpose code needs to
+   correct both bit-flip and phase-flip errors, since an arbitrary single-qubit error is a linear
+   combination of $I, X, Y, Z$.
+
+Both gaps point at the same stretch-goal direction: stabilizer formalism, syndrome extraction, and
+(eventually) surface codes.
+
+*Relevant code:* `notebooks/04_error_mitigation.ipynb` §6.
+
+### Q18. Why does the repetition code give exactly zero protection against phase-flip noise, and what does that imply?
+
+**Answer.** This code encodes and decodes entirely in the $Z$ basis (CNOT-copy the input, measure
+computationally, vote). For a **computational-basis input**, $Z|0\rangle=|0\rangle$ and
+$Z|1\rangle=-|1\rangle$ (up to an unobservable global phase) — a phase flip literally does nothing
+observable to a $Z$-eigenstate, at any $p$. So majority vote reports **zero logical error for every
+value of $p$**, which looks like perfect protection but is a measurement blind spot, not a
+correction: a $Z$-basis measurement of a $Z$-eigenstate can never see a $Z$ error.
+
+The real degradation only becomes visible with a **superposition input**: encoding $|+\rangle$
+produces $(|000\rangle+|111\rangle)/\sqrt2$ (structurally a GHZ state), and checking the true state
+fidelity after independent phase-flip noise on each physical qubit shows real, monotonic loss
+(dropping to fidelity exactly $0$ at $p=1$, since flipping all three qubits' phases sends
+$|000\rangle+|111\rangle \to |000\rangle-|111\rangle$, an orthogonal state) — invisible to the
+majority-vote metric entirely. This is the same "fidelity vs. error rate can disagree" lesson from
+Part 3 (Q13), taken to its logical extreme: here the disagreement isn't partial, it's total. It
+also motivates why a genuinely robust code (Shor's 9-qubit code, and stabilizer/CSS codes more
+generally) nests this bit-flip code inside its Hadamard-conjugate phase-flip code, protecting both
+bases at once.
+
+*Relevant code:* `src/error_mitigation.py::repetition_encode`;
+`tests/test_error_mitigation.py::test_phase_flip_noise_is_invisible_to_majority_vote_on_computational_input`
+and `::test_phase_flip_noise_still_degrades_true_state_fidelity_of_a_superposition_input`;
+`notebooks/04_error_mitigation.ipynb` §5.

@@ -6,8 +6,8 @@ original mini research question, with reproducible tests and publication-quality
 
 ## Status
 
-Milestone 0 (scaffold), Part 1 (Qiskit fundamentals), Part 2 (quantum noise models), and Part 3
-(noise comparison experiments) complete.
+Milestone 0 (scaffold), Part 1 (Qiskit fundamentals), Part 2 (quantum noise models), Part 3 (noise
+comparison experiments), and Part 4 (simple error mitigation) complete.
 
 ## Quickstart
 
@@ -16,8 +16,9 @@ py -3.13 -m venv .venv
 .venv\Scripts\Activate.ps1
 pip install -r requirements.txt
 pytest tests/
-jupyter lab notebooks/01_qiskit_fundamentals.ipynb notebooks/02_noise_models.ipynb notebooks/03_noise_experiments.ipynb
-python experiments/run_noise_sweep.py  # regenerates experiments/results/noise_sweep.csv
+jupyter lab notebooks/01_qiskit_fundamentals.ipynb notebooks/02_noise_models.ipynb notebooks/03_noise_experiments.ipynb notebooks/04_error_mitigation.ipynb
+python experiments/run_noise_sweep.py       # regenerates experiments/results/noise_sweep.csv
+python experiments/run_mitigation_sweep.py  # regenerates experiments/results/mitigation_sweep.csv
 ```
 
 ## Repository structure
@@ -37,7 +38,7 @@ quantum-noise-lab/
 - [x] Part 1: Qiskit fundamentals (Bell state, GHZ state, superposition, entanglement)
 - [x] Part 2: Quantum noise models (bit flip, phase flip, depolarizing, amplitude/phase damping)
 - [x] Part 3: Noise comparison experiments (fidelity, success probability, error rates)
-- [ ] Part 4: Simple error mitigation (repetition code, majority vote)
+- [x] Part 4: Simple error mitigation (repetition code, majority vote)
 - [ ] Part 5: Mini research question
 - [ ] Part 6 (optional): ML-based fidelity/error/noise-type prediction
 
