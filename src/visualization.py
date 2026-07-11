@@ -9,6 +9,7 @@ consistently across the project so a color always means the same thing.
 from __future__ import annotations
 
 from pathlib import Path
+from typing import Sequence
 
 import matplotlib.axes
 import matplotlib.pyplot as plt
@@ -21,6 +22,11 @@ _MUTED = "#898781"
 _PRIMARY_INK = "#0b0b0b"
 _SERIES_EMPIRICAL = "#2a78d6"
 _SERIES_THEORETICAL = "#1baf7a"
+
+# Fixed categorical order (validated via the dataviz skill's validate_palette.js,
+# CVD ΔE well clear of the floor): blue, aqua, yellow, green, violet. Never cycled —
+# a new series always takes the next slot in this order, not a generated hue.
+_CATEGORICAL = ["#2a78d6", "#1baf7a", "#eda100", "#008300", "#4a3aa7"]
 
 
 def _style_axes(ax: matplotlib.axes.Axes) -> None:
@@ -55,6 +61,62 @@ def plot_counts_histogram(
     ax.set_xlabel("Measured bitstring")
     ax.set_ylabel("Counts")
     ax.set_title(title)
+    _style_axes(ax)
+
+    if save_path is not None:
+        ax.figure.savefig(save_path, dpi=150, bbox_inches="tight")
+    return ax
+
+
+def plot_bloch_vector_decay(
+    params: Sequence[float],
+    bloch_vectors: Sequence[tuple[float, float, float]],
+    *,
+    title: str = "",
+    ax: matplotlib.axes.Axes | None = None,
+    save_path: Path | None = None,
+) -> matplotlib.axes.Axes:
+    """Plot Bloch-vector components (rx, ry, rz) vs. a channel parameter for one noise channel."""
+    if ax is None:
+        _, ax = plt.subplots(figsize=(5.5, 4))
+
+    rx = [v[0] for v in bloch_vectors]
+    ry = [v[1] for v in bloch_vectors]
+    rz = [v[2] for v in bloch_vectors]
+
+    for values, label, color in zip((rx, ry, rz), ("r_x", "r_y", "r_z"), _CATEGORICAL[:3]):
+        ax.plot(params, values, label=label, color=color, linewidth=2, marker="o", markersize=4)
+
+    ax.set_xlabel("Channel parameter")
+    ax.set_ylabel("Bloch vector component")
+    ax.set_ylim(-1.05, 1.05)
+    ax.set_title(title)
+    ax.legend(frameon=False, labelcolor=_PRIMARY_INK)
+    _style_axes(ax)
+
+    if save_path is not None:
+        ax.figure.savefig(save_path, dpi=150, bbox_inches="tight")
+    return ax
+
+
+def plot_purity_vs_parameter(
+    params: Sequence[float],
+    purities_by_channel: dict[str, Sequence[float]],
+    *,
+    title: str = "",
+    save_path: Path | None = None,
+) -> matplotlib.axes.Axes:
+    """Plot purity Tr(rho^2) vs. channel parameter, one line per channel (up to 5, fixed color order)."""
+    _, ax = plt.subplots(figsize=(6, 4.5))
+
+    for (channel_name, purities), color in zip(purities_by_channel.items(), _CATEGORICAL):
+        ax.plot(params, purities, label=channel_name, color=color, linewidth=2, marker="o", markersize=4)
+
+    ax.set_xlabel("Channel parameter")
+    ax.set_ylabel(r"Purity $\mathrm{Tr}(\rho^2)$")
+    ax.set_ylim(0.45, 1.05)
+    ax.set_title(title)
+    ax.legend(frameon=False, labelcolor=_PRIMARY_INK)
     _style_axes(ax)
 
     if save_path is not None:
