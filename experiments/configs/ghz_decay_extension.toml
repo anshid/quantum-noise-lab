@@ -1,0 +1,8 @@
+[general]
+output_csv = "experiments/results/ghz_decay_extension.csv"
+
+[sweep]
+channels = ["bit_flip", "phase_damping"]
+qubit_counts = [7, 8]
+params = [0.1]
+depth = 1

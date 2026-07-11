@@ -159,6 +159,39 @@ def plot_mitigation_comparison(
     return ax
 
 
+def plot_log_fidelity_vs_qubit_count(
+    qubit_counts: Sequence[int],
+    fidelities_by_channel: dict[str, Sequence[float]],
+    *,
+    title: str = "",
+    xlabel: str = "Qubit count n",
+    ylabel: str = "log(Fidelity)",
+    save_path: Path | None = None,
+) -> matplotlib.axes.Axes:
+    """Plot log(fidelity) vs. qubit count, one line per channel (up to 5, fixed color order).
+
+    Geometric decay fidelity(n) ~ A * r**n appears as a straight line here (slope
+    log(r)); a channel that instead plateaus (e.g. phase-flip's fidelity -> 1/2)
+    will visibly bend away from a straight line, making the population-vs-coherence
+    distinction from Part 5's derivation visible at a glance.
+    """
+    _, ax = plt.subplots(figsize=(6, 4.5))
+
+    for (channel_name, fidelities), color in zip(fidelities_by_channel.items(), CATEGORICAL_COLORS):
+        log_fidelities = np.log(np.asarray(fidelities, dtype=float))
+        ax.plot(qubit_counts, log_fidelities, label=channel_name, color=color, linewidth=2, marker="o", markersize=4)
+
+    ax.set_xlabel(xlabel)
+    ax.set_ylabel(ylabel)
+    ax.set_title(title)
+    ax.legend(frameon=False, labelcolor=_PRIMARY_INK)
+    _style_axes(ax)
+
+    if save_path is not None:
+        ax.figure.savefig(save_path, dpi=150, bbox_inches="tight")
+    return ax
+
+
 def plot_probability_comparison(
     empirical: dict[str, float],
     theoretical: dict[str, float],
