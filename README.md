@@ -6,7 +6,7 @@ original mini research question, with reproducible tests and publication-quality
 
 ## Status
 
-Milestone 0 (scaffold) complete. Part 1 (Qiskit fundamentals) in progress.
+Milestone 0 (scaffold) and Part 1 (Qiskit fundamentals) complete.
 
 ## Quickstart
 
@@ -32,7 +32,7 @@ quantum-noise-lab/
 
 ## Roadmap
 
-- [ ] Part 1: Qiskit fundamentals (Bell state, GHZ state, superposition, entanglement)
+- [x] Part 1: Qiskit fundamentals (Bell state, GHZ state, superposition, entanglement)
 - [ ] Part 2: Quantum noise models (bit flip, phase flip, depolarizing, amplitude/phase damping)
 - [ ] Part 3: Noise comparison experiments (fidelity, success probability, error rates)
 - [ ] Part 4: Simple error mitigation (repetition code, majority vote)

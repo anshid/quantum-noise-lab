@@ -6,3 +6,9 @@ matplotlib==3.11.0
 pytest==9.1.1
 numpy==2.5.1
 scipy==1.18.0
+
+# needed to open/run/execute notebooks/
+jupyterlab==4.6.1
+ipykernel==7.3.0
+nbconvert==7.17.1
+pylatexenc==2.10

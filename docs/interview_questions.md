@@ -83,3 +83,101 @@ it detectable by choosing the right measurement basis. So "global phase is invis
 special quirk of quantum mechanics tacked on by convention — it's the maximal invisible symmetry
 allowed by the structure of $\langle\psi|A|\psi\rangle$, and everything outside that one-parameter
 center of the unitary group is generically observable.
+
+### Q3. What exactly is the Born rule, and how does it relate to measure theory / POVMs?
+
+**Answer.** For $|\psi\rangle=\sum_i c_i|i\rangle$ in an orthonormal basis, measuring in that basis
+gives outcome $i$ with probability $P(i)=|c_i|^2=\langle\psi|\Pi_i|\psi\rangle$, where
+$\Pi_i=|i\rangle\langle i|$ is the (idempotent, Hermitian) projector onto that basis vector. The
+map $i\mapsto\langle\psi|\Pi_i|\psi\rangle$ is a genuine probability measure on the (finite)
+outcome space: it's nonnegative, and $\sum_i P(i)=\langle\psi|\big(\sum_i\Pi_i\big)|\psi\rangle=
+\langle\psi|\psi\rangle=1$ because $\{\Pi_i\}$ resolves the identity.
+
+The projector family $\{\Pi_i\}$ is a special case — a projection-valued measure — of the more
+general notion of a **POVM** (positive operator-valued measure): a set $\{E_i\}$ with each
+$E_i\succeq 0$ (positive semidefinite, not necessarily a projector) and $\sum_i E_i = I$, giving
+$P(i)=\langle\psi|E_i|\psi\rangle$. Projective measurements are the special case $E_i=\Pi_i$ with
+$\Pi_i\Pi_j=\delta_{ij}\Pi_i$. POVMs are the right formalism once measurements are imperfect or
+noisy (a realistic detector doesn't implement a clean orthogonal projection) — relevant once noise
+modeling starts in Part 2.
+
+**Finite-shot statistics:** a device only ever returns $N$ i.i.d. draws from the multinomial
+distribution with probabilities $P(i)$. The empirical frequency $\hat P(i)=\text{count}_i/N$ has
+standard error $\sqrt{P(i)(1-P(i))/N}=O(1/\sqrt N)$ — confirmed empirically in the notebook by
+sampling a uniform 2-qubit superposition at $16,\dots,16384$ shots and watching the $L_1$ error
+against the exact $0.25$-per-outcome distribution shrink at very close to the predicted
+$1/\sqrt N$ rate. This is also exactly why the pytest suite checks Bell-state measurement
+proportions with a loose $\pm10\%$ tolerance rather than exact equality.
+
+*Relevant code:* `src/simulation.py::sample_counts`, `theoretical_probabilities`;
+`notebooks/01_qiskit_fundamentals.ipynb` §2.
+
+### Q4. What signature distinguishes an entangled state from a merely classically-correlated one, and why is the reduced density matrix the right tool to see it?
+
+**Answer.** For a bipartite pure state, the **Schmidt decomposition**
+$|\psi\rangle=\sum_k\lambda_k|a_k\rangle|b_k\rangle$ (orthonormal $\{|a_k\rangle\}$,
+$\{|b_k\rangle\}$, $\lambda_k\ge0$, $\sum_k\lambda_k^2=1$) always exists, and the state is
+separable iff its Schmidt rank (number of nonzero $\lambda_k$) is 1. For the Bell state
+$|\Phi^+\rangle=(|00\rangle+|11\rangle)/\sqrt2$, $\lambda_1=\lambda_2=1/\sqrt2$ — Schmidt rank 2,
+the maximum two qubits allow.
+
+The operational fingerprint is the **reduced density matrix** $\rho_A=\mathrm{Tr}_B(|\psi\rangle
+\langle\psi|)$. For $|\Phi^+\rangle$, computing this via `qiskit.quantum_info.partial_trace` gives
+exactly $\rho_A=I/2$: the maximally mixed single-qubit state — confirmed numerically in the
+notebook. This is the sharp classical/quantum contrast: classically, a joint distribution over
+$(A,B)$ with zero entropy (a known, deterministic outcome) forces zero-entropy marginals too —
+$H(A,B)=0\Rightarrow H(A)=H(B)=0$. Here the *global* state is pure ($S(\rho_{AB})=0$, since
+$\rho_{AB}$ is a rank-1 projector) while each *local* reduced state has **maximal** entropy. A
+globally pure state with maximally mixed marginals has no classical analogue — that gap is what
+"entanglement" means operationally, not just "the qubits are correlated" (classical correlation
+alone doesn't produce it; see Q6 for the sharpened version of this point with GHZ).
+
+Also worth flagging: `partial_trace` is a completely-positive, trace-preserving (CPTP) map — the
+same category of object that defines a noise channel. Tracing out a subsystem and suffering
+physical decoherence are the same kind of mathematical operation; decoherence *is*, physically,
+entanglement with an unmeasured/inaccessible environment followed by tracing it out. This is the
+direct bridge into Part 2's Kraus-operator noise models.
+
+*Relevant code:* `src/circuits.py::bell_state`; `notebooks/01_qiskit_fundamentals.ipynb` §3.
+
+### Q5. Qiskit prints a measurement outcome as e.g. `"01"` — which qubit is which bit?
+
+**Answer.** Qiskit orders qubits with **qubit 0 as the least-significant bit**. So a bitstring is
+read right-to-left against qubit index: `"01"` means $q_1{=}0, q_0{=}1$, not "qubit 0 is 0, qubit
+1 is 1" as a naive left-to-right reading would suggest. This is a frequent, easy-to-miss source of
+off-by-reversal bugs, especially when cross-referencing hand-derived amplitude vectors (which are
+usually written with qubit 0 first, left to right, in most textbooks) against Qiskit's
+`Statevector.data` ordering (index $k$'s binary expansion has qubit 0 as the least-significant
+bit of $k$) or against printed counts dictionaries. When indexing programmatically (e.g.
+`partial_trace(sv, qubit_indices)`), always pass qubit *indices*, not string positions, to avoid
+depending on this convention at all.
+
+*Relevant code:* `notebooks/01_qiskit_fundamentals.ipynb` §3 (flagged inline after the Bell-state
+reduced-density-matrix computation).
+
+### Q6. Why is a GHZ state's entanglement considered more "fragile" than a Bell pair's?
+
+**Answer.** Take $|\mathrm{GHZ}_3\rangle=(|000\rangle+|111\rangle)/\sqrt2$ on qubits $(0,1,2)$ and
+compare two different partial traces (both verified numerically in the notebook):
+
+- Trace out **two** qubits, keep one: $\rho_0=I/2$ — maximally mixed, same as the Bell-state case.
+  A lone qubit can never exhibit "correlation" (that requires $\ge2$ parties), so this only shows
+  local mixedness again, not anything GHZ-specific.
+- Trace out **one** qubit, keep two: $\rho_{01}=\tfrac12(|00\rangle\langle00|+|11\rangle\langle11|)$
+  — confirmed exactly by `partial_trace(ghz_sv, [2])` in the notebook, giving a diagonal matrix
+  with $0.5$ at the `00` and `11` entries and zero elsewhere. This is a **classical mixture**: the
+  off-diagonal coherence term $|00\rangle\langle11|$ vanishes because it would require
+  $\langle0|1\rangle$ on the traced-out qubit, which is $0$. The two remaining qubits still always
+  agree (perfect correlation survives) but that correlation is now entirely classical —
+  indistinguishable from "flip a coin once, copy the result to two parties."
+
+So losing access to **any single qubit** of a GHZ state instantly destroys all quantum coherence
+among the rest, leaving only classical correlation behind. A Bell pair has no intermediate case to
+compare against — there's nothing left to partially lose access to without destroying the pair
+outright. This asymmetry in how different entangled states degrade under qubit loss is a direct
+preview of why maintaining large entangled states on noisy hardware gets harder as they grow, and
+it's why GHZ-state fidelity is a standard benchmark for how much noise a real device has (relevant
+again once Part 2/3 quantify this under actual noise channels rather than an idealized "erase a
+qubit" operation).
+
+*Relevant code:* `src/circuits.py::ghz_state`; `notebooks/01_qiskit_fundamentals.ipynb` §4.
