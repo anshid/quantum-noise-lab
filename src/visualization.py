@@ -26,7 +26,7 @@ _SERIES_THEORETICAL = "#1baf7a"
 # Fixed categorical order (validated via the dataviz skill's validate_palette.js,
 # CVD ΔE well clear of the floor): blue, aqua, yellow, green, violet. Never cycled —
 # a new series always takes the next slot in this order, not a generated hue.
-_CATEGORICAL = ["#2a78d6", "#1baf7a", "#eda100", "#008300", "#4a3aa7"]
+CATEGORICAL_COLORS = ["#2a78d6", "#1baf7a", "#eda100", "#008300", "#4a3aa7"]
 
 
 def _style_axes(ax: matplotlib.axes.Axes) -> None:
@@ -84,7 +84,7 @@ def plot_bloch_vector_decay(
     ry = [v[1] for v in bloch_vectors]
     rz = [v[2] for v in bloch_vectors]
 
-    for values, label, color in zip((rx, ry, rz), ("r_x", "r_y", "r_z"), _CATEGORICAL[:3]):
+    for values, label, color in zip((rx, ry, rz), ("r_x", "r_y", "r_z"), CATEGORICAL_COLORS[:3]):
         ax.plot(params, values, label=label, color=color, linewidth=2, marker="o", markersize=4)
 
     ax.set_xlabel("Channel parameter")
@@ -109,7 +109,7 @@ def plot_purity_vs_parameter(
     """Plot purity Tr(rho^2) vs. channel parameter, one line per channel (up to 5, fixed color order)."""
     _, ax = plt.subplots(figsize=(6, 4.5))
 
-    for (channel_name, purities), color in zip(purities_by_channel.items(), _CATEGORICAL):
+    for (channel_name, purities), color in zip(purities_by_channel.items(), CATEGORICAL_COLORS):
         ax.plot(params, purities, label=channel_name, color=color, linewidth=2, marker="o", markersize=4)
 
     ax.set_xlabel("Channel parameter")
