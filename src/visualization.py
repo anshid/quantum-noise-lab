@@ -124,6 +124,41 @@ def plot_purity_vs_parameter(
     return ax
 
 
+def plot_mitigation_comparison(
+    params: Sequence[float],
+    series: dict[str, Sequence[float]],
+    *,
+    title: str = "",
+    xlabel: str = "Physical error rate p",
+    ylabel: str = "Logical error rate",
+    reference_line: bool = True,
+    save_path: Path | None = None,
+) -> matplotlib.axes.Axes:
+    """Plot one or more error-rate curves vs. physical error rate p (up to 5, fixed color order).
+
+    reference_line=True adds a dashed y=x "no mitigation" baseline and marks
+    the p=0.5 crossover point, where majority vote stops helping.
+    """
+    _, ax = plt.subplots(figsize=(6, 4.5))
+
+    for (series_name, values), color in zip(series.items(), CATEGORICAL_COLORS):
+        ax.plot(params, values, label=series_name, color=color, linewidth=2, marker="o", markersize=4)
+
+    if reference_line:
+        ax.plot(params, params, label="No mitigation (y=x)", color=_MUTED, linewidth=1.5, linestyle="--", zorder=1)
+        ax.plot([0.5], [0.5], marker="x", color=_PRIMARY_INK, markersize=8, zorder=3)
+
+    ax.set_xlabel(xlabel)
+    ax.set_ylabel(ylabel)
+    ax.set_title(title)
+    ax.legend(frameon=False, labelcolor=_PRIMARY_INK)
+    _style_axes(ax)
+
+    if save_path is not None:
+        ax.figure.savefig(save_path, dpi=150, bbox_inches="tight")
+    return ax
+
+
 def plot_probability_comparison(
     empirical: dict[str, float],
     theoretical: dict[str, float],
