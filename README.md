@@ -6,7 +6,7 @@ original mini research question, with reproducible tests and publication-quality
 
 ## Status
 
-Milestone 0 (scaffold) and Part 1 (Qiskit fundamentals) complete.
+Milestone 0 (scaffold), Part 1 (Qiskit fundamentals), and Part 2 (quantum noise models) complete.
 
 ## Quickstart
 
@@ -15,7 +15,7 @@ py -3.13 -m venv .venv
 .venv\Scripts\Activate.ps1
 pip install -r requirements.txt
 pytest tests/
-jupyter lab notebooks/01_qiskit_fundamentals.ipynb
+jupyter lab notebooks/01_qiskit_fundamentals.ipynb notebooks/02_noise_models.ipynb
 ```
 
 ## Repository structure
@@ -33,7 +33,7 @@ quantum-noise-lab/
 ## Roadmap
 
 - [x] Part 1: Qiskit fundamentals (Bell state, GHZ state, superposition, entanglement)
-- [ ] Part 2: Quantum noise models (bit flip, phase flip, depolarizing, amplitude/phase damping)
+- [x] Part 2: Quantum noise models (bit flip, phase flip, depolarizing, amplitude/phase damping)
 - [ ] Part 3: Noise comparison experiments (fidelity, success probability, error rates)
 - [ ] Part 4: Simple error mitigation (repetition code, majority vote)
 - [ ] Part 5: Mini research question

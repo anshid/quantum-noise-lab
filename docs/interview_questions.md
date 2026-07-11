@@ -181,3 +181,112 @@ again once Part 2/3 quantify this under actual noise channels rather than an ide
 qubit" operation).
 
 *Relevant code:* `src/circuits.py::ghz_state`; `notebooks/01_qiskit_fundamentals.ipynb` §4.
+
+## Part 2 — Quantum Noise Models
+
+### Q7. Why can't unitary evolution alone model physical noise, and where do Kraus operators actually come from?
+
+**Answer.** A unitary is reversible ($U^\dagger U = I$) and preserves the purity of any state it
+acts on — $\rho \to U\rho U^\dagger$ has the same eigenvalues as $\rho$. Real decoherence is
+*not* reversible in this sense (you can't undo a spontaneous-emission event by re-applying a
+gate), so it cannot be a unitary on the qubit's own Hilbert space alone.
+
+The right model: let the qubit ($\rho$) start uncorrelated with an environment $E$ in a fixed
+state $|0\rangle_E$, evolve the *joint* system unitarily (the whole universe is still closed), then
+discard $E$ — exactly the `partial_trace` operation from Part 1's Q4/Q6, now tracing out an
+environment instead of an entanglement partner:
+
+$$\rho' = \mathrm{Tr}_E\big[U(\rho\otimes|0\rangle\langle0|_E)U^\dagger\big]
+        = \sum_i K_i\rho K_i^\dagger, \qquad K_i := \langle e_i|_E\,U\,|0\rangle_E$$
+
+for any orthonormal basis $\{|e_i\rangle\}$ of $E$. The $K_i$ act only on the qubit — the
+environment index has been summed away — and this operator-sum form is exactly as general as
+"unitary on system+environment, then trace out the environment": that equivalence is the
+**Stinespring dilation theorem**. Trace preservation ($\mathrm{Tr}\rho'=1$ for all $\rho$) holds
+iff $\sum_i K_i^\dagger K_i = I$ (the completeness relation); complete positivity is automatic from
+the operator-sum form itself.
+
+*Relevant code:* `src/noise_models.py` module docstring; `notebooks/02_noise_models.ipynb` §2.
+
+### Q8. Kraus operators for a channel aren't unique — so how do you check two different-looking implementations of "the same" channel are actually equal?
+
+**Answer.** If $\{K_i\}$ is a valid Kraus decomposition of a channel, so is $\{\sum_j U_{ij}K_j\}$
+for *any* unitary matrix $U$ mixing the operators — this is an isometry freedom with no physical
+content, not a different channel. So two Kraus lists that look completely different elementwise
+can represent the identical physical map, and conversely comparing raw operators
+(`np.allclose(K_list_1, K_list_2)`) is simply the wrong check.
+
+The correct, basis-independent object is the channel's transfer-matrix representation — Qiskit's
+`SuperOp` (equivalently `Choi`) — which is uniquely determined by the channel regardless of which
+Kraus decomposition produced it. `tests/test_noise_models.py` verifies every hand-derived channel
+against Qiskit's built-in `noise.errors` via `np.allclose(SuperOp(Kraus(ours)).data,
+SuperOp(Kraus(theirs)).data)`, never by comparing the Kraus operators directly. The same
+non-uniqueness is *why* phase damping and phase flip (Q10) can be "the same channel" despite
+having visibly different-looking Kraus operators.
+
+*Relevant code:* `tests/test_noise_models.py` (all four `test_*_matches_qiskit_builtin` tests).
+
+### Q9. What's the actual difference between a "unital" and "non-unital" channel, and which of the five channels here is the odd one out?
+
+**Answer.** A channel is **unital** if it maps the maximally mixed state to itself:
+$\mathcal{E}(I/2) = I/2$. Bit flip, phase flip, depolarizing, and phase damping are all unital —
+each is a linear map on the Bloch vector with no additive shift ($r \to M r$ for some matrix $M$),
+so $r=0$ (the center of the sphere, i.e. $I/2$) is always a fixed point.
+
+**Amplitude damping is not**: its Bloch-vector map is $r \to Mr + c$ with $c=(0,0,\gamma)\neq 0$
+(derived and confirmed numerically in the notebook), so $r=0 \to (0,0,\gamma) \ne 0$. Physically
+this makes sense — amplitude damping models spontaneous relaxation *toward the ground state*
+$|0\rangle$, a directional physical process with a preferred destination, not merely "randomize and
+lose information." As $\gamma\to1$, *every* input state (regardless of its own Bloch vector) is
+pulled all the way to $r=(0,0,1)$, i.e. $|0\rangle$ exactly — a **pure** state, so purity actually
+climbs back to 1 at $\gamma=1$, the only channel among the five whose purity-vs-parameter curve is
+non-monotonic (confirmed in the comparison plot: amplitude damping's curve dips and then returns to
+1).
+
+*Relevant code:* `src/noise_models.py::amplitude_damping_kraus`;
+`notebooks/02_noise_models.ipynb` §6, §8 (comparison plot).
+
+### Q10. Isn't phase damping just phase flip with a different name?
+
+**Answer.** More than "similar" — they're literally the same channel, under a specific
+reparametrization, which is confirmed by direct `SuperOp` equality in the notebook: phase
+damping with parameter $\lambda$ equals phase flip with $p = \tfrac{1-\sqrt{1-\lambda}}{2}$, for
+every $\lambda$ tested. This can look surprising because their conventional Kraus operators look
+different (phase flip: $\{\sqrt{1-p}\,I,\ \sqrt p\,Z\}$; phase damping:
+$\{\mathrm{diag}(1,\sqrt{1-\lambda}),\ \mathrm{diag}(0,\sqrt\lambda)\}$) — but per Q8, different
+Kraus operators don't imply different channels.
+
+What actually distinguishes them in practice is not the math but the **physical story attached to
+the parameter**: phase flip's $p$ is the natural parameter for a discrete, one-shot Pauli-error
+event (e.g. one noisy gate application); phase damping's $\lambda = 1-e^{-t/T_2}$ is the natural
+parameter for a *continuously acting* physical dephasing process during idle time $t$ next to a
+$T_2$ bath. Same mathematical object, two different physical contexts that motivate naming and
+parametrizing it differently — a good illustration of why "what channel is this" and "why do we
+call it that" are separate questions.
+
+*Relevant code:* `notebooks/02_noise_models.ipynb` §7 (direct `SuperOp` equality check with
+`p_equiv = (1 - np.sqrt(1 - lam)) / 2`).
+
+### Q11. Why does Qiskit's depolarizing channel include an identity term, and does that change what the parameter "$p$" means compared to bit/phase flip?
+
+**Answer.** Yes — it's a real convention difference, not just notation. Qiskit's single-qubit
+depolarizing channel is $\mathcal E(\rho)=(1-\tfrac{3p}{4})\rho+\tfrac p4(X\rho X+Y\rho Y+Z\rho Z)$,
+a uniform mixture over *all four* single-qubit Paulis including identity. Using the identity
+$X\rho X+Y\rho Y+Z\rho Z=2I-\rho$ (valid for normalized $\rho$), this simplifies exactly to
+
+$$\mathcal E(\rho) = (1-p)\,\rho + p\,\frac{I}{2}$$
+
+— "with probability $p$, replace the state by the maximally mixed state; otherwise leave it
+alone." That's a clean, physically transparent form, and it's why depolarizing's Bloch-vector map
+is *isotropic*: $r\to(1-p)r$, shrinking all three components by the same factor (confirmed in the
+notebook — the one channel whose three Bloch-decay curves sit exactly on top of each other).
+
+But it means depolarizing's $p$ is **not** directly comparable to bit-flip's or phase-flip's $p$
+at face value: bit-flip's $p$ is "the probability of specifically an $X$ error," while
+depolarizing's $p$ already has the "do nothing" identity outcome folded into its own
+normalization. Reporting "10% depolarizing noise" and "10% bit-flip noise" are not the same
+*amount* of damage to the state — comparing error rates across channel *types* requires picking a
+common summary statistic (e.g. purity or fidelity at matched parameter, as in the notebook's
+comparison plot) rather than assuming the raw parameters are on the same scale.
+
+*Relevant code:* `src/noise_models.py::depolarizing_kraus`; `notebooks/02_noise_models.ipynb` §5.
