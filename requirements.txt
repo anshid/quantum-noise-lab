@@ -1,0 +1,8 @@
+-e .
+
+qiskit==2.5.0
+qiskit-aer==0.17.2
+matplotlib==3.11.0
+pytest==9.1.1
+numpy==2.5.1
+scipy==1.18.0
