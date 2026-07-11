@@ -114,3 +114,23 @@ def test_noisy_sample_counts_reproduces_expected_flip_rate():
     counts = sample_counts(qc, shots=4096, seed=42, noise_model=noise_model)
     total = sum(counts.values())
     assert abs(counts.get("1", 0) / total - p) < 0.05
+
+
+def test_noisy_sample_counts_applies_independently_to_multiple_qubits():
+    # Regression test: NoiseModel.add_quantum_error requires one call per qubit for a
+    # single-qubit error — passing qubits=[0, 1] in one call is interpreted as a joint
+    # 2-qubit error target and raises, so single_qubit_noise_model must loop internally.
+    p = 0.3
+    qc = QuantumCircuit(2)
+    qc.id(0)
+    qc.id(1)
+    qc.add_register(ClassicalRegister(2, name="meas"))
+    qc.measure([0, 1], [0, 1])
+
+    noise_model = single_qubit_noise_model(bit_flip_kraus(p), qubits=[0, 1], gate="id")
+    counts = sample_counts(qc, shots=4096, seed=42, noise_model=noise_model)
+    total = sum(counts.values())
+    flip_rate_qubit0 = (counts.get("01", 0) + counts.get("11", 0)) / total
+    flip_rate_qubit1 = (counts.get("10", 0) + counts.get("11", 0)) / total
+    assert abs(flip_rate_qubit0 - p) < 0.05
+    assert abs(flip_rate_qubit1 - p) < 0.05

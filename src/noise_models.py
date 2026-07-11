@@ -73,14 +73,16 @@ CHANNEL_KRAUS_BUILDERS: dict[str, Callable[[float], list[np.ndarray]]] = {
 def single_qubit_noise_model(
     kraus_ops: list[np.ndarray], qubits: Sequence[int], gate: str = "id"
 ) -> NoiseModel:
-    """Attach a single-qubit Kraus channel to `gate` on the given qubits.
+    """Attach a single-qubit Kraus channel to `gate`, independently, on each of the given qubits.
 
     Used to inject noise into circuit-level simulation via
     simulation.sample_counts(..., noise_model=...); qubits must be given
     explicitly since a NoiseModel has no notion of "all qubits" without a
-    backend to query.
+    backend to query. Each qubit gets its own independent copy of the error
+    (not a joint multi-qubit error), since kraus_ops is a single-qubit channel.
     """
     error: QuantumError = kraus_error(kraus_ops)
     model = NoiseModel()
-    model.add_quantum_error(error, [gate], list(qubits))
+    for qubit in qubits:
+        model.add_quantum_error(error, [gate], [qubit])
     return model
