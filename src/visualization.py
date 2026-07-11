@@ -192,6 +192,101 @@ def plot_log_fidelity_vs_qubit_count(
     return ax
 
 
+def plot_predicted_vs_actual(
+    y_true: Sequence[float],
+    y_pred: Sequence[float],
+    *,
+    title: str = "",
+    xlabel: str = "Actual fidelity",
+    ylabel: str = "Predicted fidelity",
+    ax: matplotlib.axes.Axes | None = None,
+    save_path: Path | None = None,
+) -> matplotlib.axes.Axes:
+    """Scatter of predicted vs. actual values with a y=x reference line.
+
+    Points on the dashed line are exact predictions; systematic curvature away from
+    it (rather than just scatter) indicates the model is missing a nonlinearity, not
+    just noisy -- the distinction this plot is meant to make visible.
+    """
+    if ax is None:
+        _, ax = plt.subplots(figsize=(5.5, 5))
+
+    y_true = np.asarray(y_true, dtype=float)
+    y_pred = np.asarray(y_pred, dtype=float)
+    lo = min(y_true.min(), y_pred.min())
+    hi = max(y_true.max(), y_pred.max())
+
+    ax.plot([lo, hi], [lo, hi], color=_MUTED, linewidth=1.5, linestyle="--", zorder=1, label="Perfect prediction")
+    ax.scatter(y_true, y_pred, color=_SERIES_EMPIRICAL, s=18, alpha=0.6, zorder=2)
+
+    ax.set_xlabel(xlabel)
+    ax.set_ylabel(ylabel)
+    ax.set_title(title)
+    ax.legend(frameon=False, labelcolor=_PRIMARY_INK)
+    _style_axes(ax)
+
+    if save_path is not None:
+        ax.figure.savefig(save_path, dpi=150, bbox_inches="tight")
+    return ax
+
+
+def plot_feature_importance(
+    importances: dict[str, float],
+    *,
+    title: str = "",
+    xlabel: str = "Importance",
+    save_path: Path | None = None,
+) -> matplotlib.axes.Axes:
+    """Horizontal bar chart of feature importances, sorted ascending (largest on top)."""
+    ordered = sorted(importances.items(), key=lambda item: item[1])
+    labels = [name for name, _ in ordered]
+    values = [value for _, value in ordered]
+
+    _, ax = plt.subplots(figsize=(6, 0.45 * len(labels) + 1))
+    ax.barh(labels, values, color=_SERIES_EMPIRICAL, zorder=2)
+    ax.set_xlabel(xlabel)
+    ax.set_title(title)
+    _style_axes(ax)
+    ax.grid(axis="x", color=_GRIDLINE, linewidth=0.8, zorder=0)
+    ax.grid(axis="y", visible=False)
+
+    if save_path is not None:
+        ax.figure.savefig(save_path, dpi=150, bbox_inches="tight")
+    return ax
+
+
+def plot_grouped_bar_comparison(
+    categories: Sequence[str],
+    series: dict[str, Sequence[float]],
+    *,
+    title: str = "",
+    xlabel: str = "",
+    ylabel: str = "",
+    save_path: Path | None = None,
+) -> matplotlib.axes.Axes:
+    """Grouped bar chart: one group per category, one color per named series (up to 5)."""
+    x = np.arange(len(categories))
+    n_series = len(series)
+    width = 0.8 / n_series
+
+    _, ax = plt.subplots(figsize=(6.5, 4.5))
+    for i, ((series_name, values), color) in enumerate(zip(series.items(), CATEGORICAL_COLORS)):
+        offset = (i - (n_series - 1) / 2) * width
+        ax.bar(x + offset, values, width, label=series_name, color=color, zorder=2)
+
+    ax.set_xticks(x)
+    ax.set_xticklabels(categories)
+    ax.set_xlabel(xlabel)
+    ax.set_ylabel(ylabel)
+    ax.set_title(title)
+    ax.legend(frameon=False, labelcolor=_PRIMARY_INK)
+    _style_axes(ax)
+
+    if save_path is not None:
+        ax.figure.savefig(save_path, dpi=150, bbox_inches="tight")
+    return ax
+
+
 def plot_probability_comparison(
     empirical: dict[str, float],
     theoretical: dict[str, float],

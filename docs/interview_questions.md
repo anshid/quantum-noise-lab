@@ -512,3 +512,95 @@ such classical simulation cost at all — it *is* the $n$-qubit system, which is
 characterizing noise on real devices (rather than simulating it) becomes essential at scale.
 
 *Relevant code:* `docs/mini_research_question.md` (Limitations); `notebooks/05_mini_research_question.ipynb` §6.
+
+## Part 6 — ML Fidelity Prediction vs. Physics Baseline
+
+### Q22. Why is a random train/test split on a dense parameter-sweep grid a poor test of a model's generalization, and what's the alternative?
+
+**Answer.** A random split only tests **interpolation**: every held-out row's features
+(`qubit_count`, `param`, `depth`) already sit inside the range spanned by the training rows on
+every axis, because the grid is dense (670 rows over a handful of discrete values per feature).
+A model — even a lookup table — can "solve" this by memorizing nearby grid points; a high R² here
+says almost nothing about whether the model learned the underlying decay mechanism. The harder,
+more meaningful question is **extrapolation**: train on `qubit_count<=4`/`depth in {1,2}` and test
+on `qubit_count in {5,6}`/`depth in {4,8}`, so every test row lies *past the edge* of what the
+model has ever seen. This is exactly the situation a real adaptive-noise-modelling pipeline faces
+in practice — predicting fidelity for a deeper circuit or a larger register than was ever
+benchmarked — so it's the split that actually matters for that use case.
+
+*Relevant code:* `src/ml_fidelity.py::interpolation_split`, `::extrapolation_split`;
+`tests/test_ml_fidelity.py::test_extrapolation_split_holds_out_only_requested_values`;
+`notebooks/06_ml_fidelity_prediction.ipynb` §"Split 1"/"Split 2 & 3".
+
+### Q23. Linear regression gets a *negative* R² when extrapolating over depth. What does that actually mean, and why does it happen here specifically?
+
+**Answer.** $R^2 = 1 - \mathrm{SS}_{\text{res}}/\mathrm{SS}_{\text{tot}}$, where
+$\mathrm{SS}_{\text{tot}}$ is the variance of the test labels around *their own* mean. $R^2=0$
+means the model does no better than predicting that mean for every row; $R^2<0$ means it does
+**actively worse** than that trivial baseline — the model's predictions are more wrong, on
+average, than just guessing the average. That happens here because fidelity compounds
+*multiplicatively* over `depth`: each of `depth` sequential noise layers multiplies the surviving
+population/coherence by the same per-layer factor, so the true relationship is closer to
+$\text{const}^{\text{depth}}$ than to $a\cdot\text{depth}+b$. A linear model fit on `depth`$\in\{1,2\}$
+extrapolates its (locally-okay) linear slope out to `depth`$\in\{4,8\}$, wildly overshooting the
+actual (much smaller) further decrease — the further the exponential curve bends away from its own
+tangent line, the worse a linear extrapolation gets, so error grows with distance from the training
+range rather than saturating.
+
+*Relevant code:* `experiments/results/ml_fidelity_metrics.csv` (row: `split=extrapolation_depth,
+model=linear, dataset=test`); `notebooks/06_ml_fidelity_prediction.ipynb` §"Split 2 & 3".
+
+### Q24. Why can't a random forest (or a tree ensemble generally) extrapolate a trend past its training range, even though it clearly captures nonlinear shapes well within that range?
+
+**Answer.** A regression tree predicts by partitioning feature space into axis-aligned boxes and
+returning the *mean training label* within whichever box a query point falls into. There is no
+mechanism for a leaf to predict outside the range of labels it was trained on: a query point with
+`depth=8`, when no training row had `depth>2`, still gets routed to whichever leaf's boundary
+condition it satisfies (typically the same leaf as the largest `depth` seen in training) and
+returns that leaf's average — it cannot output a value below the minimum or above the maximum
+training label in that region. Concretely, this is why the random forest's test R² degrades
+monotonically here (0.961 → 0.934 → 0.875) rather than failing catastrophically like linear
+regression: it doesn't extrapolate the trend at all, it just clamps to the nearest thing it's seen,
+which is *closer* to correct than a linear model's wrong-direction extrapolation, but still
+systematically biased once the true value has moved meaningfully past the training range.
+
+*Relevant code:* `src/ml_fidelity.py::build_pipeline` (`RandomForestRegressor`);
+`experiments/results/ml_fidelity_metrics.csv`; `notebooks/06_ml_fidelity_prediction.ipynb`
+§"Why regression, and why two models".
+
+### Q25. Why benchmark the ML model against the Part 5 physics closed form instead of just reporting its R²/MAE on held-out data?
+
+**Answer.** R²/MAE against held-out *labels* only tells you how well the model fits data drawn
+from the same generating process as training — it says nothing about whether the model recovered
+the actual functional form, versus a different function that happens to agree closely on the
+observed grid. The Part 5 closed form is a second, independent way to know the "true" answer
+for two of the five channels — derived from the channels' Kraus operators, not fit to data — so
+comparing the ML model's error against it (on the *same* test rows) tests something R²
+alone cannot: not just "does the model predict well," but "does it predict as well as actually
+knowing the mechanism." Here the answer is no, by 4–7 orders of magnitude, and the gap widens under
+extrapolation specifically — which is the concrete, quantified version of the general principle
+that a mechanistic model should be preferred over a data-driven one whenever one is available.
+
+*Relevant code:* `src/ml_fidelity.py::physics_baseline_fidelity`;
+`tests/test_ml_fidelity.py::test_physics_baseline_matches_committed_sweep_for_bell_and_ghz_phase_flip`;
+`docs/ml_fidelity_report.md` (Results).
+
+### Q26. Feature importance ranks `param` far above `channel`, `qubit_count`, and `depth`, with `circuit` near zero. What does that ranking license you to conclude, and what does it *not*?
+
+**Answer.** Both importance measures used here (Gini, from the trained trees' split quality;
+permutation, from the test-score drop when a column is shuffled) measure how much a *feature*
+contributes to *this model's* predictions on *this dataset* — they do not measure causal
+mechanism directly, only how much predictive signal that column carries once the others are
+already available. `circuit`'s near-zero importance doesn't mean circuit type is causally
+irrelevant to fidelity; it means it's *redundant* given `qubit_count`, since the only `circuit`
+values in this dataset are a 2-qubit Bell pair and an $n$-qubit GHZ state, and a Bell pair *is* a
+2-qubit GHZ state mechanistically — `qubit_count` already captures everything `circuit` would add.
+Similarly, `param` dominating doesn't mean `channel` is unimportant in any absolute sense — it
+means that, *within the ranges swept here*, varying `param` moves fidelity more than switching
+`channel` does, which is a fact about this sweep's parameter ranges as much as about the physics.
+Importance rankings are honest about "what does this model lean on," not "what causally matters in
+general."
+
+*Relevant code:* `experiments/run_ml_fidelity.py::write_feature_importance`;
+`experiments/results/ml_fidelity_feature_importance.csv`;
+`notebooks/06_ml_fidelity_prediction.ipynb` §"Feature importance".

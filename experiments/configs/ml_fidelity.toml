@@ -1,0 +1,27 @@
+[general]
+input_csv = "experiments/results/noise_sweep.csv"
+metrics_csv = "experiments/results/ml_fidelity_metrics.csv"
+feature_importance_csv = "experiments/results/ml_fidelity_feature_importance.csv"
+seed = 42
+
+# Random split, stratified by channel: every test row's features sit inside the
+# training grid's range -- tests interpolation.
+[interpolation_split]
+test_size = 0.2
+
+# Train on qubit_count <= 4, test on qubit_count in {5, 6}: test rows lie past the
+# edge of the training range -- tests extrapolation past the training grid.
+[extrapolation_split_qubit_count]
+feature = "qubit_count"
+holdout_values = [5, 6]
+
+# Train on depth in {1, 2}, test on depth in {4, 8}: same extrapolation question
+# along the other swept axis with a closed-form ground truth available (depth
+# multiplies the dephasing exponent -- see src/ml_fidelity.py::physics_baseline_fidelity).
+[extrapolation_split_depth]
+feature = "depth"
+holdout_values = [4, 8]
+
+[random_forest]
+n_estimators = 200
+max_depth = 8
